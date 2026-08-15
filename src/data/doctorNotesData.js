@@ -1,0 +1,67 @@
+export const doctorNotes = [
+  {
+    id: "N-001",
+    doctorName: "Dr. Sharma",
+    patientName: "Arjun Rao",
+    patientId: "C-1001",
+    diagnosis: "Possible cardiovascular condition",
+    remarks:
+      "Patient advised to undergo further cardiac evaluation.",
+    prescription: "Continue current medication.",
+    status: "Reviewed",
+    followUpDate: "22 Aug 2026",
+    createdDate: "15 Aug 2026",
+  },
+  {
+    id: "N-002",
+    doctorName: "Dr. Priya Nair",
+    patientName: "Priya Sharma",
+    patientId: "C-1002",
+    diagnosis: "Possible diabetes mellitus",
+    remarks:
+      "Blood glucose monitoring recommended. Follow dietary recommendations.",
+    prescription: "Continue prescribed medication.",
+    status: "Follow-up",
+    followUpDate: "20 Aug 2026",
+    createdDate: "15 Aug 2026",
+  },
+  {
+    id: "N-003",
+    doctorName: "Dr. Sharma",
+    patientName: "Rahul Mehta",
+    patientId: "C-1003",
+    diagnosis: "Acute chest pain",
+    remarks:
+      "Patient requires further cardiac assessment.",
+    prescription: "Continue prescribed medication.",
+    status: "Reviewed",
+    followUpDate: "19 Aug 2026",
+    createdDate: "14 Aug 2026",
+  },
+  {
+    id: "N-004",
+    doctorName: "Dr. Ananya Rao",
+    patientName: "Ananya Patel",
+    patientId: "C-1004",
+    diagnosis: "Respiratory infection",
+    remarks:
+      "Monitor temperature and respiratory symptoms.",
+    prescription: "Supportive treatment advised.",
+    status: "Pending",
+    followUpDate: "21 Aug 2026",
+    createdDate: "14 Aug 2026",
+  },
+  {
+    id: "N-005",
+    doctorName: "Dr. Sharma",
+    patientName: "Vikram Singh",
+    patientId: "C-1005",
+    diagnosis: "Hypertension",
+    remarks:
+      "Blood pressure monitoring advised.",
+    prescription: "Continue antihypertensive medication.",
+    status: "Reviewed",
+    followUpDate: "28 Aug 2026",
+    createdDate: "13 Aug 2026",
+  },
+]
