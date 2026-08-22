@@ -8,6 +8,7 @@ import {
   FiActivity,
   FiArrowRight,
 } from "react-icons/fi"
+
 import { useAuth } from "../../context/AuthContext"
 import Button from "../../components/Button"
 
@@ -22,7 +23,7 @@ const Login = () => {
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
     setError("")
 
@@ -33,17 +34,20 @@ const Login = () => {
 
     setLoading(true)
 
-    setTimeout(() => {
-      const result = login(username, password)
+    try {
+      const result = await login(username, password)
 
       if (result.success) {
         navigate("/dashboard")
       } else {
         setError(result.message)
       }
-
+    } catch (error) {
+      console.error("Login error:", error)
+      setError("Unable to connect to the server.")
+    } finally {
       setLoading(false)
-    }, 600)
+    }
   }
 
   return (
@@ -228,7 +232,10 @@ const Login = () => {
               className="w-full"
             >
               Sign In
-              {!loading && <FiArrowRight className="h-4 w-4" />}
+
+              {!loading && (
+                <FiArrowRight className="h-4 w-4" />
+              )}
             </Button>
           </form>
 

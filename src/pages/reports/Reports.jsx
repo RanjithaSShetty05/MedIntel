@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import {
   FiDownload,
@@ -12,53 +12,128 @@ import { toast } from "react-toastify"
 import Card from "../../components/Card"
 import Badge from "../../components/Badge"
 import Button from "../../components/Button"
-import { reportsData } from "../../data/reportsData"
+
+import { getCases } from "../../services/cases"
+import {
+  getReportById,
+  downloadReport,
+} from "../../services/reports"
 
 const Reports = () => {
   const navigate = useNavigate()
 
+  const [cases, setCases] = useState([])
   const [search, setSearch] = useState("")
-  const [typeFilter, setTypeFilter] = useState("All")
-  const [selectedReport, setSelectedReport] = useState(null)
+  const [selectedCase, setSelectedCase] = useState(null)
 
-  const filteredReports = useMemo(() => {
+  const [loading, setLoading] = useState(true)
+  const [downloading, setDownloading] = useState(null)
+  const [viewing, setViewing] = useState(null)
+
+  // Load real cases from backend
+  useEffect(() => {
+    const loadCases = async () => {
+      try {
+        setLoading(true)
+
+        const data = await getCases()
+
+        setCases(Array.isArray(data) ? data : [])
+      } catch (error) {
+        console.error("Failed to load cases:", error)
+
+        toast.error(
+          "Unable to load clinical reports."
+        )
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    loadCases()
+  }, [])
+
+  // Search
+  const filteredCases = useMemo(() => {
     const value = search.toLowerCase().trim()
 
-    return reportsData.filter((report) => {
-      const matchesSearch =
-        !value ||
-        report.reportName
-          .toLowerCase()
-          .includes(value) ||
-        report.patientName
-          .toLowerCase()
-          .includes(value) ||
-        report.patientId
-          .toLowerCase()
-          .includes(value) ||
-        report.generatedBy
-          .toLowerCase()
-          .includes(value)
+    if (!value) {
+      return cases
+    }
 
-      const matchesType =
-        typeFilter === "All" ||
-        report.reportType === typeFilter
+    return cases.filter((item) => {
+      const patientName =
+        item.patientName?.toLowerCase() || ""
 
-      return matchesSearch && matchesType
+      const patientId =
+        String(item.id || "").toLowerCase()
+
+      const status =
+        item.status?.toLowerCase() || ""
+
+      return (
+        patientName.includes(value) ||
+        patientId.includes(value) ||
+        status.includes(value)
+      )
     })
-  }, [search, typeFilter])
+  }, [cases, search])
 
-  const reportTypes = [
-    ...new Set(
-      reportsData.map((report) => report.reportType)
-    ),
-  ]
+  // View PDF
+  const handleView = async (patientCase) => {
+    try {
+      setViewing(patientCase.id)
 
-  const handleDownload = (report) => {
-    // Dummy download action for now.
-    toast.success(
-      `${report.reportName} download started.`
-    )
+      const blob = await getReportById(patientCase.id)
+
+      const url = window.URL.createObjectURL(
+        new Blob([blob], {
+          type: "application/pdf",
+        })
+      )
+
+      window.open(url, "_blank")
+
+      // Give browser time to open the PDF
+      setTimeout(() => {
+        window.URL.revokeObjectURL(url)
+      }, 60000)
+    } catch (error) {
+      console.error("Failed to view report:", error)
+
+      toast.error(
+        "Unable to open the PDF report."
+      )
+    } finally {
+      setViewing(null)
+    }
+  }
+
+  // Download PDF
+  const handleDownload = async (patientCase) => {
+    try {
+      setDownloading(patientCase.id)
+
+      await downloadReport(
+        patientCase.id,
+        patientCase.patientName
+      )
+
+      toast.success(
+        "PDF report downloaded successfully."
+      )
+    } catch (error) {
+      console.error(
+        "Failed to download report:",
+        error
+      )
+
+      toast.error(
+        "Unable to download the PDF report."
+      )
+    } finally {
+      setDownloading(null)
+    }
   }
 
   return (
@@ -83,6 +158,7 @@ const Reports = () => {
       {/* Summary cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
 
+        {/* Total */}
         <Card>
           <div className="flex items-center gap-4">
             <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
@@ -91,16 +167,17 @@ const Reports = () => {
 
             <div>
               <p className="text-xs text-slate-400">
-                Total Reports
+                Total Cases
               </p>
 
               <p className="text-xl font-bold text-slate-900">
-                {reportsData.length}
+                {cases.length}
               </p>
             </div>
           </div>
         </Card>
 
+        {/* Generated */}
         <Card>
           <div className="flex items-center gap-4">
             <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
@@ -109,21 +186,17 @@ const Reports = () => {
 
             <div>
               <p className="text-xs text-slate-400">
-                Generated
+                Reports Available
               </p>
 
               <p className="text-xl font-bold text-slate-900">
-                {
-                  reportsData.filter(
-                    (report) =>
-                      report.status === "Generated"
-                  ).length
-                }
+                {cases.length}
               </p>
             </div>
           </div>
         </Card>
 
+        {/* Showing */}
         <Card>
           <div className="flex items-center gap-4">
             <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-purple-50 text-purple-600">
@@ -132,11 +205,11 @@ const Reports = () => {
 
             <div>
               <p className="text-xs text-slate-400">
-                Available
+                Showing
               </p>
 
               <p className="text-xl font-bold text-slate-900">
-                {filteredReports.length}
+                {filteredCases.length}
               </p>
             </div>
           </div>
@@ -144,59 +217,47 @@ const Reports = () => {
 
       </div>
 
-      {/* Search and filter */}
+      {/* Search */}
       <Card>
-        <div className="flex flex-col gap-3 sm:flex-row">
+        <div className="relative">
+          <FiSearch className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
 
-          <div className="relative flex-1">
-            <FiSearch className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-
-            <input
-              type="text"
-              value={search}
-              onChange={(e) =>
-                setSearch(e.target.value)
-              }
-              placeholder="Search report, patient, case ID, or generated by..."
-              className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-4 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100"
-            />
-          </div>
-
-          <select
-            value={typeFilter}
+          <input
+            type="text"
+            value={search}
             onChange={(e) =>
-              setTypeFilter(e.target.value)
+              setSearch(e.target.value)
             }
-            className="rounded-lg border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-          >
-            <option value="All">
-              All report types
-            </option>
-
-            {reportTypes.map((type) => (
-              <option key={type} value={type}>
-                {type}
-              </option>
-            ))}
-          </select>
+            placeholder="Search patient or case ID..."
+            className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-4 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100"
+          />
         </div>
       </Card>
 
       {/* Reports table */}
       <Card className="overflow-hidden">
+
         <div className="border-b border-slate-100 px-5 py-4">
           <p className="text-sm text-slate-500">
             Showing{" "}
             <span className="font-semibold text-slate-800">
-              {filteredReports.length}
+              {filteredCases.length}
             </span>{" "}
             reports
           </p>
         </div>
 
-        {filteredReports.length > 0 ? (
+        {loading ? (
+          <div className="flex min-h-[280px] items-center justify-center">
+            <p className="text-sm text-slate-500">
+              Loading reports...
+            </p>
+          </div>
+        ) : filteredCases.length > 0 ? (
+
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[950px] text-left">
+
+            <table className="w-full min-w-[900px] text-left">
 
               <thead>
                 <tr className="border-b border-slate-100 bg-slate-50/70">
@@ -210,19 +271,15 @@ const Reports = () => {
                   </th>
 
                   <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wider text-slate-400">
-                    Type
-                  </th>
-
-                  <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wider text-slate-400">
-                    Generated By
-                  </th>
-
-                  <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wider text-slate-400">
-                    Date
+                    Urgency
                   </th>
 
                   <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wider text-slate-400">
                     Status
+                  </th>
+
+                  <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wider text-slate-400">
+                    Created
                   </th>
 
                   <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-400">
@@ -233,14 +290,17 @@ const Reports = () => {
               </thead>
 
               <tbody>
-                {filteredReports.map((report) => (
+
+                {filteredCases.map((patientCase) => (
+
                   <tr
-                    key={report.id}
+                    key={patientCase.id}
                     className="border-b border-slate-100 transition hover:bg-slate-50/60"
                   >
 
                     {/* Report */}
                     <td className="px-5 py-4">
+
                       <div className="flex items-center gap-3">
 
                         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
@@ -249,94 +309,140 @@ const Reports = () => {
 
                         <div>
                           <p className="text-sm font-semibold text-slate-800">
-                            {report.reportName}
+                            Clinical Report
                           </p>
 
                           <p className="mt-0.5 text-xs text-slate-400">
-                            {report.id}
+                            Case #{patientCase.id}
                           </p>
                         </div>
 
                       </div>
+
                     </td>
 
                     {/* Patient */}
                     <td className="px-5 py-4">
+
                       <button
                         onClick={() =>
                           navigate(
-                            `/cases/${report.patientId}`
+                            `/cases/${patientCase.id}`
                           )
                         }
                         className="text-left"
                       >
                         <p className="text-sm font-medium text-blue-600 hover:text-blue-700">
-                          {report.patientName}
+                          {patientCase.patientName}
                         </p>
 
                         <p className="text-xs text-slate-400">
-                          {report.patientId}
+                          Patient ID: {patientCase.id}
                         </p>
                       </button>
+
                     </td>
 
-                    {/* Type */}
+                    {/* Urgency */}
                     <td className="px-5 py-4">
-                      <span className="rounded-lg bg-slate-100 px-2.5 py-1.5 text-xs font-medium text-slate-600">
-                        {report.reportType}
-                      </span>
-                    </td>
 
-                    {/* Generated By */}
-                    <td className="px-5 py-4 text-sm text-slate-600">
-                      {report.generatedBy}
-                    </td>
+                      <Badge
+                        variant={
+                          patientCase.urgencyLevel ===
+                          "critical"
+                            ? "danger"
+                            : patientCase.urgencyLevel ===
+                              "high"
+                            ? "warning"
+                            : patientCase.urgencyLevel ===
+                              "medium"
+                            ? "warning"
+                            : "success"
+                        }
+                      >
+                        {patientCase.urgencyLevel
+                          ? patientCase.urgencyLevel
+                              .charAt(0)
+                              .toUpperCase() +
+                            patientCase.urgencyLevel.slice(1)
+                          : "Unknown"}
+                      </Badge>
 
-                    {/* Date */}
-                    <td className="whitespace-nowrap px-5 py-4 text-sm text-slate-500">
-                      {report.generatedDate}
                     </td>
 
                     {/* Status */}
                     <td className="px-5 py-4">
-                      <Badge variant="success">
-                        {report.status}
+
+                      <Badge variant="info">
+                        {patientCase.status || "Waiting"}
                       </Badge>
+
+                    </td>
+
+                    {/* Created */}
+                    <td className="whitespace-nowrap px-5 py-4 text-sm text-slate-500">
+
+                      {patientCase.createdAt
+                        ? new Date(
+                            patientCase.createdAt
+                          ).toLocaleString()
+                        : "—"}
+
                     </td>
 
                     {/* Actions */}
                     <td className="px-5 py-4">
+
                       <div className="flex justify-end gap-1">
 
+                        {/* View */}
                         <button
-                          title="View report"
-                          onClick={() =>
-                            setSelectedReport(report)
+                          title="View PDF"
+                          disabled={
+                            viewing ===
+                            patientCase.id
                           }
-                          className="rounded-lg p-2 text-slate-500 transition hover:bg-blue-50 hover:text-blue-600"
+                          onClick={() =>
+                            handleView(patientCase)
+                          }
+                          className="rounded-lg p-2 text-slate-500 transition hover:bg-blue-50 hover:text-blue-600 disabled:opacity-50"
                         >
                           <FiEye className="h-4 w-4" />
                         </button>
 
+                        {/* Download */}
                         <button
                           title="Download PDF"
-                          onClick={() =>
-                            handleDownload(report)
+                          disabled={
+                            downloading ===
+                            patientCase.id
                           }
-                          className="rounded-lg p-2 text-slate-500 transition hover:bg-emerald-50 hover:text-emerald-600"
+                          onClick={() =>
+                            handleDownload(
+                              patientCase
+                            )
+                          }
+                          className="rounded-lg p-2 text-slate-500 transition hover:bg-emerald-50 hover:text-emerald-600 disabled:opacity-50"
                         >
                           <FiDownload className="h-4 w-4" />
                         </button>
 
                       </div>
+
                     </td>
 
                   </tr>
+
                 ))}
+
               </tbody>
+
             </table>
+
           </div>
+
         ) : (
+
           <div className="flex min-h-[280px] flex-col items-center justify-center text-center">
 
             <div className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-100">
@@ -348,156 +454,72 @@ const Reports = () => {
             </h3>
 
             <p className="mt-1 text-sm text-slate-500">
-              Try changing your search or report type filter.
+              No clinical cases are available.
             </p>
 
           </div>
+
         )}
+
       </Card>
 
-      {/* Report Preview Modal */}
-      {selectedReport && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm">
+      {/* Information */}
+      <div className="rounded-xl border border-amber-100 bg-amber-50 px-5 py-4">
 
-          <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white shadow-2xl">
+        <div className="flex gap-3">
 
-            {/* Modal Header */}
-            <div className="flex items-center justify-between border-b border-slate-100 px-6 py-5">
+          <FiFileText className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
 
-              <div>
-                <p className="text-xs font-medium uppercase tracking-wider text-blue-600">
-                  Report Preview
-                </p>
+          <div>
+            <p className="text-sm font-semibold text-amber-800">
+              Clinical report
+            </p>
 
-                <h2 className="mt-1 text-lg font-bold text-slate-900">
-                  {selectedReport.reportName}
-                </h2>
-              </div>
+            <p className="mt-1 text-sm leading-6 text-amber-700">
+              Reports are generated from the clinical case
+              information stored by MedIntel. Use View to open
+              the PDF in a new tab or Download to save it.
+            </p>
+          </div>
+
+        </div>
+
+      </div>
+
+      {/* Kept for compatibility with existing state */}
+      {selectedCase && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4"
+          onClick={() =>
+            setSelectedCase(null)
+          }
+        >
+          <div
+            className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl"
+            onClick={(e) =>
+              e.stopPropagation()
+            }
+          >
+            <div className="flex items-center justify-between">
+
+              <h2 className="text-lg font-bold text-slate-900">
+                {selectedCase.patientName}
+              </h2>
 
               <button
                 onClick={() =>
-                  setSelectedReport(null)
+                  setSelectedCase(null)
                 }
-                className="rounded-lg p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+                className="rounded-lg p-2 text-slate-400 hover:bg-slate-100"
               >
                 <FiX className="h-5 w-5" />
               </button>
 
             </div>
-
-            {/* Report Content */}
-            <div className="space-y-6 p-6">
-
-              {/* Report details */}
-              <div className="grid grid-cols-2 gap-4 rounded-xl bg-slate-50 p-5 sm:grid-cols-4">
-
-                <div>
-                  <p className="text-xs text-slate-400">
-                    Report ID
-                  </p>
-
-                  <p className="mt-1 text-sm font-semibold text-slate-800">
-                    {selectedReport.id}
-                  </p>
-                </div>
-
-                <div>
-                  <p className="text-xs text-slate-400">
-                    Patient
-                  </p>
-
-                  <p className="mt-1 text-sm font-semibold text-slate-800">
-                    {selectedReport.patientName}
-                  </p>
-                </div>
-
-                <div>
-                  <p className="text-xs text-slate-400">
-                    Type
-                  </p>
-
-                  <p className="mt-1 text-sm font-semibold text-slate-800">
-                    {selectedReport.reportType}
-                  </p>
-                </div>
-
-                <div>
-                  <p className="text-xs text-slate-400">
-                    Generated
-                  </p>
-
-                  <p className="mt-1 text-sm font-semibold text-slate-800">
-                    {selectedReport.generatedDate}
-                  </p>
-                </div>
-
-              </div>
-
-              {/* Dummy report sections */}
-              <div>
-                <h3 className="text-sm font-bold text-slate-900">
-                  Clinical Summary
-                </h3>
-
-                <p className="mt-2 text-sm leading-7 text-slate-600">
-                  This report contains the clinical information,
-                  AI-assisted analysis, risk assessment, and
-                  relevant findings associated with the selected
-                  patient case.
-                </p>
-              </div>
-
-              <div>
-                <h3 className="text-sm font-bold text-slate-900">
-                  Assessment
-                </h3>
-
-                <p className="mt-2 text-sm leading-7 text-slate-600">
-                  The available patient information has been
-                  reviewed and analyzed through the MedIntel
-                  clinical decision support workflow.
-                </p>
-              </div>
-
-              <div>
-                <h3 className="text-sm font-bold text-slate-900">
-                  Recommendations
-                </h3>
-
-                <p className="mt-2 text-sm leading-7 text-slate-600">
-                  Further clinical evaluation and professional
-                  review are recommended based on the findings
-                  presented in this report.
-                </p>
-              </div>
-
-              {/* Actions */}
-              <div className="flex flex-col-reverse gap-3 border-t border-slate-100 pt-5 sm:flex-row sm:justify-end">
-
-                <Button
-                  variant="outline"
-                  onClick={() =>
-                    setSelectedReport(null)
-                  }
-                >
-                  Close
-                </Button>
-
-                <Button
-                  icon={FiDownload}
-                  onClick={() =>
-                    handleDownload(selectedReport)
-                  }
-                >
-                  Download PDF
-                </Button>
-
-              </div>
-
-            </div>
           </div>
         </div>
       )}
+
     </div>
   )
 }

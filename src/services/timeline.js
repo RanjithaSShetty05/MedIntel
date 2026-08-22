@@ -1,21 +1,23 @@
+import api from "./api"
+
 export const getTimeline = async (patientId) => {
-  console.log("Getting timeline for:", patientId)
+  const response = await api.get(
+    `/cases/${patientId}/timeline`
+  )
 
-  return []
+  return response.data
 }
 
-export const createTimelineEvent = async (eventData) => {
-  console.log("Creating timeline event:", eventData)
+export const createTimelineEvent = async (
+  patientId,
+  label
+) => {
+  const response = await api.post(
+    `/cases/${patientId}/timeline`,
+    {
+      label,
+    }
+  )
 
-  return {
-    success: true,
-  }
-}
-
-export const deleteTimelineEvent = async (id) => {
-  console.log("Deleting timeline event:", id)
-
-  return {
-    success: true,
-  }
+  return response.data
 }

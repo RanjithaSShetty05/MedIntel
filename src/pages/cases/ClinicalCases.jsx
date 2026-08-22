@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import {
   FiSearch,
@@ -15,7 +15,7 @@ import {
 import Badge from "../../components/Badge"
 import Button from "../../components/Button"
 import Card from "../../components/Card"
-import { clinicalCases } from "../../data/casesData"
+import { getCases } from "../../services/cases"
 
 const urgencyVariants = {
   Critical: "critical",
@@ -27,10 +27,17 @@ const urgencyVariants = {
 const statusVariants = {
   Reviewed: "success",
   Pending: "warning",
+  Waiting: "warning",
+  Treated: "success",
+  "Follow-Up Required": "warning",
 }
 
 const ClinicalCases = () => {
   const navigate = useNavigate()
+
+  const [clinicalCases, setClinicalCases] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState("")
 
   const [search, setSearch] = useState("")
   const [urgency, setUrgency] = useState("All")
@@ -42,10 +49,73 @@ const ClinicalCases = () => {
   const [sortDirection, setSortDirection] = useState("desc")
 
   const [currentPage, setCurrentPage] = useState(1)
-
   const [showFilters, setShowFilters] = useState(false)
 
   const itemsPerPage = 8
+
+  // Load cases from backend
+  useEffect(() => {
+    const loadCases = async () => {
+      try {
+        setLoading(true)
+        setError("")
+
+        const data = await getCases()
+
+        const mappedCases = (Array.isArray(data) ? data : []).map(
+          (patient) => ({
+            id: String(patient.id),
+            patientName: patient.patientName || "Unknown",
+            age: patient.patientAge ?? "-",
+            gender: patient.patientGender
+              ? patient.patientGender.charAt(0).toUpperCase() +
+                patient.patientGender.slice(1)
+              : "-",
+
+            symptoms: Array.isArray(patient.symptoms)
+              ? patient.symptoms.join(", ")
+              : patient.symptoms || patient.rawText || "No symptoms",
+
+            urgency: patient.urgencyLevel
+              ? patient.urgencyLevel.charAt(0).toUpperCase() +
+                patient.urgencyLevel.slice(1).toLowerCase()
+              : "Low",
+
+            status: patient.status
+              ? patient.status.charAt(0).toUpperCase() +
+                patient.status.slice(1).toLowerCase()
+              : "Pending",
+
+            createdDate: patient.createdAt
+              ? new Date(patient.createdAt).toLocaleDateString(
+                  "en-IN",
+                  {
+                    day: "2-digit",
+                    month: "short",
+                    year: "numeric",
+                  }
+                )
+              : "-",
+          })
+        )
+
+        setClinicalCases(mappedCases)
+      } catch (error) {
+        console.error(
+          "Failed to load clinical cases:",
+          error
+        )
+
+        setError(
+          "Unable to load clinical cases. Please try again."
+        )
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    loadCases()
+  }, [])
 
   // Filtering
   const filteredCases = useMemo(() => {
@@ -54,9 +124,15 @@ const ClinicalCases = () => {
 
       const matchesSearch =
         !searchValue ||
-        patient.patientName.toLowerCase().includes(searchValue) ||
-        patient.symptoms.toLowerCase().includes(searchValue) ||
-        patient.id.toLowerCase().includes(searchValue)
+        patient.patientName
+          .toLowerCase()
+          .includes(searchValue) ||
+        patient.symptoms
+          .toLowerCase()
+          .includes(searchValue) ||
+        patient.id
+          .toLowerCase()
+          .includes(searchValue)
 
       const matchesUrgency =
         urgency === "All" ||
@@ -73,16 +149,16 @@ const ClinicalCases = () => {
       const matchesAge =
         age === "All" ||
         (age === "18-30" &&
-          patient.age >= 18 &&
-          patient.age <= 30) ||
+          Number(patient.age) >= 18 &&
+          Number(patient.age) <= 30) ||
         (age === "31-45" &&
-          patient.age >= 31 &&
-          patient.age <= 45) ||
+          Number(patient.age) >= 31 &&
+          Number(patient.age) <= 45) ||
         (age === "46-60" &&
-          patient.age >= 46 &&
-          patient.age <= 60) ||
+          Number(patient.age) >= 46 &&
+          Number(patient.age) <= 60) ||
         (age === "60+" &&
-          patient.age >= 60)
+          Number(patient.age) >= 60)
 
       return (
         matchesSearch &&
@@ -92,7 +168,14 @@ const ClinicalCases = () => {
         matchesAge
       )
     })
-  }, [search, urgency, status, gender, age])
+  }, [
+    clinicalCases,
+    search,
+    urgency,
+    status,
+    gender,
+    age,
+  ])
 
   // Sorting
   const sortedCases = useMemo(() => {
@@ -122,7 +205,11 @@ const ClinicalCases = () => {
     })
 
     return sorted
-  }, [filteredCases, sortField, sortDirection])
+  }, [
+    filteredCases,
+    sortField,
+    sortDirection,
+  ])
 
   // Pagination
   const totalPages = Math.ceil(
@@ -157,7 +244,7 @@ const ClinicalCases = () => {
     setUrgency("All")
     setStatus("All")
     setGender("All")
-    setAge("All")
+    setAge("")
     setCurrentPage(1)
   }
 
@@ -177,6 +264,51 @@ const ClinicalCases = () => {
       <FiChevronUp className="h-3.5 w-3.5" />
     ) : (
       <FiChevronDown className="h-3.5 w-3.5" />
+    )
+  }
+
+  // Loading
+  if (loading) {
+    return (
+      <div className="mx-auto max-w-[1600px]">
+        <Card>
+          <div className="flex min-h-[300px] items-center justify-center">
+            <p className="text-sm text-slate-500">
+              Loading clinical cases...
+            </p>
+          </div>
+        </Card>
+      </div>
+    )
+  }
+
+  // Error
+  if (error) {
+    return (
+      <div className="mx-auto max-w-[1600px]">
+        <Card>
+          <div className="flex min-h-[300px] flex-col items-center justify-center text-center">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-50">
+              <FiX className="h-5 w-5 text-red-500" />
+            </div>
+
+            <h3 className="mt-4 text-sm font-semibold text-slate-800">
+              Unable to load cases
+            </h3>
+
+            <p className="mt-1 max-w-sm text-sm text-slate-500">
+              {error}
+            </p>
+
+            <button
+              onClick={() => window.location.reload()}
+              className="mt-4 text-sm font-medium text-blue-600 hover:text-blue-700"
+            >
+              Try again
+            </button>
+          </div>
+        </Card>
+      </div>
     )
   }
 
@@ -266,11 +398,21 @@ const ClinicalCases = () => {
                   }}
                   className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                 >
-                  <option value="All">All urgency levels</option>
-                  <option value="Critical">Critical</option>
-                  <option value="High">High</option>
-                  <option value="Medium">Medium</option>
-                  <option value="Low">Low</option>
+                  <option value="All">
+                    All urgency levels
+                  </option>
+                  <option value="Critical">
+                    Critical
+                  </option>
+                  <option value="High">
+                    High
+                  </option>
+                  <option value="Medium">
+                    Medium
+                  </option>
+                  <option value="Low">
+                    Low
+                  </option>
                 </select>
               </div>
 
@@ -288,9 +430,24 @@ const ClinicalCases = () => {
                   }}
                   className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                 >
-                  <option value="All">All statuses</option>
-                  <option value="Reviewed">Reviewed</option>
-                  <option value="Pending">Pending</option>
+                  <option value="All">
+                    All statuses
+                  </option>
+                  <option value="Waiting">
+                    Waiting
+                  </option>
+                  <option value="Reviewed">
+                    Reviewed
+                  </option>
+                  <option value="Pending">
+                    Pending
+                  </option>
+                  <option value="Treated">
+                    Treated
+                  </option>
+                  <option value="Follow-Up Required">
+                    Follow-Up Required
+                  </option>
                 </select>
               </div>
 
@@ -308,9 +465,18 @@ const ClinicalCases = () => {
                   }}
                   className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                 >
-                  <option value="All">All genders</option>
-                  <option value="Male">Male</option>
-                  <option value="Female">Female</option>
+                  <option value="All">
+                    All genders
+                  </option>
+                  <option value="Male">
+                    Male
+                  </option>
+                  <option value="Female">
+                    Female
+                  </option>
+                  <option value="Other">
+                    Other
+                  </option>
                 </select>
               </div>
 
@@ -328,11 +494,21 @@ const ClinicalCases = () => {
                   }}
                   className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                 >
-                  <option value="All">All ages</option>
-                  <option value="18-30">18–30</option>
-                  <option value="31-45">31–45</option>
-                  <option value="46-60">46–60</option>
-                  <option value="60+">60+</option>
+                  <option value="All">
+                    All ages
+                  </option>
+                  <option value="18-30">
+                    18–30
+                  </option>
+                  <option value="31-45">
+                    31–45
+                  </option>
+                  <option value="46-60">
+                    46–60
+                  </option>
+                  <option value="60+">
+                    60+
+                  </option>
                 </select>
               </div>
             </div>
@@ -433,7 +609,7 @@ const ClinicalCases = () => {
                         </p>
 
                         <p className="mt-0.5 text-xs text-slate-400">
-                          {patient.id}
+                          Case #{patient.id}
                         </p>
                       </div>
                     </td>

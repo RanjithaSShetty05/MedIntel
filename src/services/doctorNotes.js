@@ -1,19 +1,21 @@
-export const getDoctorNotes = async () => {
-  return []
+import api from "./api"
+
+export const getDoctorNotes = async (caseId) => {
+  const response = await api.get(
+    `/cases/${caseId}/doctor-notes`
+  )
+
+  return response.data
 }
 
-export const createDoctorNote = async (noteData) => {
-  console.log("Creating doctor note:", noteData)
+export const createDoctorNote = async (
+  caseId,
+  noteData
+) => {
+  const response = await api.post(
+    `/cases/${caseId}/doctor-notes`,
+    noteData
+  )
 
-  return {
-    success: true,
-  }
-}
-
-export const deleteDoctorNote = async (id) => {
-  console.log("Deleting doctor note:", id)
-
-  return {
-    success: true,
-  }
+  return response.data
 }

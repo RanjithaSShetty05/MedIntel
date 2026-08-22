@@ -31,14 +31,8 @@ import {
 import Card from "../../components/Card"
 import Badge from "../../components/Badge"
 
-import {
-  dashboardStats,
-  monthlyCases,
-  diseaseDistribution,
-  riskDistribution,
-  recentPatients,
-  recentActivities,
-} from "../../data/dashboardData"
+import { useEffect, useState } from "react"
+import { getDashboardData } from "../../services/dashboard"
 
 const statIcons = {
   patients: FiUsers,
@@ -96,13 +90,6 @@ const diseaseColors = [
   "#94a3b8",
 ]
 
-const riskColors = [
-  "#dc2626",
-  "#f97316",
-  "#f59e0b",
-  "#10b981",
-]
-
 const StatCard = ({ stat }) => {
   const Icon = statIcons[stat.icon]
 
@@ -129,7 +116,9 @@ const StatCard = ({ stat }) => {
           <Icon className="h-5 w-5" />
         </div>
 
-        <div className={`flex items-center gap-1 text-xs font-medium ${trendColor}`}>
+        <div
+          className={`flex items-center gap-1 text-xs font-medium ${trendColor}`}
+        >
           <TrendIcon className="h-3.5 w-3.5" />
           {stat.change}
         </div>
@@ -149,6 +138,122 @@ const StatCard = ({ stat }) => {
 }
 
 const Dashboard = () => {
+  const [dashboardData, setDashboardData] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState("")
+
+  useEffect(() => {
+    const loadDashboard = async () => {
+      try {
+        setLoading(true)
+
+        const data = await getDashboardData()
+
+        setDashboardData(data)
+      } catch (error) {
+        console.error("Dashboard loading error:", error)
+        setError("Unable to load dashboard data.")
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    loadDashboard()
+  }, [])
+
+  /*
+   * All of these now come from the backend through
+   * getDashboardData().
+   */
+  const monthlyCases =
+    dashboardData?.monthlyCases || []
+
+  const diseaseDistribution =
+    dashboardData?.diseaseDistribution || []
+
+  const riskDistribution =
+    dashboardData?.riskDistribution || []
+
+  const recentPatients =
+    dashboardData?.recentPatients || []
+
+  const recentActivities =
+    dashboardData?.recentActivities || []
+
+  const dashboardStats = dashboardData
+    ? [
+        {
+          title: "Total Patients",
+          value: dashboardData.totalPatients,
+          icon: "patients",
+          change: "Live",
+          changeType: "positive",
+        },
+        {
+          title: "Critical Cases",
+          value: dashboardData.criticalCases,
+          icon: "critical",
+          change: "Live",
+          changeType: "negative",
+        },
+        {
+          title: "High Risk",
+          value: dashboardData.highCases,
+          icon: "high",
+          change: "Live",
+          changeType: "negative",
+        },
+        {
+          title: "Medium Risk",
+          value: dashboardData.mediumCases,
+          icon: "medium",
+          change: "Live",
+          changeType: "neutral",
+        },
+        {
+          title: "Low Risk",
+          value: dashboardData.lowCases,
+          icon: "low",
+          change: "Live",
+          changeType: "positive",
+        },
+        {
+          title: "Pending Cases",
+          value: dashboardData.pendingCases,
+          icon: "pending",
+          change: "Live",
+          changeType: "neutral",
+        },
+        {
+          title: "Reviewed Cases",
+          value: dashboardData.reviewedCases,
+          icon: "reviewed",
+          change: "Live",
+          changeType: "positive",
+        },
+      ]
+    : []
+
+  if (loading) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <p className="text-sm text-slate-500">
+          Loading dashboard...
+        </p>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="mx-auto max-w-7xl">
+        <div className="rounded-xl border border-red-100 bg-red-50 p-5 text-sm text-red-600">
+          {error}
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="mx-auto max-w-[1600px] space-y-6">
 
@@ -172,8 +277,14 @@ const Dashboard = () => {
           <span className="font-medium text-slate-900">
             Today
           </span>
+
           {" • "}
-          15 August 2026
+
+          {new Date().toLocaleDateString("en-GB", {
+            day: "2-digit",
+            month: "long",
+            year: "numeric",
+          })}
         </div>
       </div>
 
@@ -197,69 +308,82 @@ const Dashboard = () => {
           className="xl:col-span-2"
         >
           <div className="h-[300px] w-full">
-            <ResponsiveContainer
-              width="100%"
-              height="100%"
-            >
-              <AreaChart data={monthlyCases}>
-                <defs>
-                  <linearGradient
-                    id="casesGradient"
-                    x1="0"
-                    y1="0"
-                    x2="0"
-                    y2="1"
-                  >
-                    <stop
-                      offset="5%"
-                      stopColor="#2563eb"
-                      stopOpacity={0.2}
-                    />
+            {monthlyCases.length > 0 ? (
+              <ResponsiveContainer
+                width="100%"
+                height="100%"
+              >
+                <AreaChart data={monthlyCases}>
+                  <defs>
+                    <linearGradient
+                      id="casesGradient"
+                      x1="0"
+                      y1="0"
+                      x2="0"
+                      y2="1"
+                    >
+                      <stop
+                        offset="5%"
+                        stopColor="#2563eb"
+                        stopOpacity={0.2}
+                      />
 
-                    <stop
-                      offset="95%"
-                      stopColor="#2563eb"
-                      stopOpacity={0}
-                    />
-                  </linearGradient>
-                </defs>
+                      <stop
+                        offset="95%"
+                        stopColor="#2563eb"
+                        stopOpacity={0}
+                      />
+                    </linearGradient>
+                  </defs>
 
-                <CartesianGrid
-                  strokeDasharray="3 3"
-                  vertical={false}
-                  stroke="#e2e8f0"
-                />
+                  <CartesianGrid
+                    strokeDasharray="3 3"
+                    vertical={false}
+                    stroke="#e2e8f0"
+                  />
 
-                <XAxis
-                  dataKey="month"
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fill: "#64748b", fontSize: 12 }}
-                />
+                  <XAxis
+                    dataKey="month"
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{
+                      fill: "#64748b",
+                      fontSize: 12,
+                    }}
+                  />
 
-                <YAxis
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fill: "#64748b", fontSize: 12 }}
-                />
+                  <YAxis
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{
+                      fill: "#64748b",
+                      fontSize: 12,
+                    }}
+                  />
 
-                <Tooltip
-                  contentStyle={{
-                    borderRadius: "10px",
-                    border: "1px solid #e2e8f0",
-                    boxShadow: "0 4px 12px rgba(15, 23, 42, 0.08)",
-                  }}
-                />
+                  <Tooltip
+                    contentStyle={{
+                      borderRadius: "10px",
+                      border: "1px solid #e2e8f0",
+                      boxShadow:
+                        "0 4px 12px rgba(15, 23, 42, 0.08)",
+                    }}
+                  />
 
-                <Area
-                  type="monotone"
-                  dataKey="cases"
-                  stroke="#2563eb"
-                  strokeWidth={2.5}
-                  fill="url(#casesGradient)"
-                />
-              </AreaChart>
-            </ResponsiveContainer>
+                  <Area
+                    type="monotone"
+                    dataKey="cases"
+                    stroke="#2563eb"
+                    strokeWidth={2.5}
+                    fill="url(#casesGradient)"
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex h-full items-center justify-center text-sm text-slate-400">
+                No monthly case data available yet.
+              </div>
+            )}
           </div>
         </Card>
 
@@ -269,65 +393,85 @@ const Dashboard = () => {
           subtitle="Distribution of identified conditions"
         >
           <div className="h-[300px]">
-            <ResponsiveContainer
-              width="100%"
-              height="100%"
-            >
-              <PieChart>
-                <Pie
-                  data={diseaseDistribution}
-                  dataKey="value"
-                  nameKey="name"
-                  cx="50%"
-                  cy="45%"
-                  innerRadius={65}
-                  outerRadius={95}
-                  paddingAngle={3}
-                >
-                  {diseaseDistribution.map((entry, index) => (
-                    <Cell
-                      key={`disease-${index}`}
-                      fill={diseaseColors[index % diseaseColors.length]}
-                    />
-                  ))}
-                </Pie>
-
-                <Tooltip
-                  contentStyle={{
-                    borderRadius: "10px",
-                    border: "1px solid #e2e8f0",
-                  }}
-                />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-
-          <div className="space-y-2">
-            {diseaseDistribution.map((item, index) => (
-              <div
-                key={item.name}
-                className="flex items-center justify-between text-sm"
+            {diseaseDistribution.length > 0 ? (
+              <ResponsiveContainer
+                width="100%"
+                height="100%"
               >
-                <div className="flex items-center gap-2">
-                  <span
-                    className="h-2.5 w-2.5 rounded-full"
-                    style={{
-                      backgroundColor:
-                        diseaseColors[index % diseaseColors.length],
+                <PieChart>
+                  <Pie
+                    data={diseaseDistribution}
+                    dataKey="value"
+                    nameKey="name"
+                    cx="50%"
+                    cy="45%"
+                    innerRadius={65}
+                    outerRadius={95}
+                    paddingAngle={3}
+                  >
+                    {diseaseDistribution.map(
+                      (entry, index) => (
+                        <Cell
+                          key={`disease-${index}`}
+                          fill={
+                            diseaseColors[
+                              index %
+                                diseaseColors.length
+                            ]
+                          }
+                        />
+                      )
+                    )}
+                  </Pie>
+
+                  <Tooltip
+                    contentStyle={{
+                      borderRadius: "10px",
+                      border: "1px solid #e2e8f0",
                     }}
                   />
-
-                  <span className="text-slate-600">
-                    {item.name}
-                  </span>
-                </div>
-
-                <span className="font-medium text-slate-900">
-                  {item.value}%
-                </span>
+                </PieChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex h-full items-center justify-center text-sm text-slate-400">
+                No disease data available yet.
               </div>
-            ))}
+            )}
           </div>
+
+          {diseaseDistribution.length > 0 && (
+            <div className="space-y-2">
+              {diseaseDistribution.map(
+                (item, index) => (
+                  <div
+                    key={item.name}
+                    className="flex items-center justify-between text-sm"
+                  >
+                    <div className="flex items-center gap-2">
+                      <span
+                        className="h-2.5 w-2.5 rounded-full"
+                        style={{
+                          backgroundColor:
+                            diseaseColors[
+                              index %
+                                diseaseColors.length
+                            ],
+                        }}
+                      />
+
+                      <span className="text-slate-600">
+                        {item.name}
+                      </span>
+                    </div>
+
+                    <span className="font-medium text-slate-900">
+                      {item.value}
+                    </span>
+                  </div>
+                )
+              )}
+            </div>
+          )}
         </Card>
       </section>
 
@@ -361,17 +505,25 @@ const Dashboard = () => {
                   dataKey="name"
                   axisLine={false}
                   tickLine={false}
-                  tick={{ fill: "#64748b", fontSize: 12 }}
+                  tick={{
+                    fill: "#64748b",
+                    fontSize: 12,
+                  }}
                 />
 
                 <YAxis
                   axisLine={false}
                   tickLine={false}
-                  tick={{ fill: "#64748b", fontSize: 12 }}
+                  tick={{
+                    fill: "#64748b",
+                    fontSize: 12,
+                  }}
                 />
 
                 <Tooltip
-                  cursor={{ fill: "#f8fafc" }}
+                  cursor={{
+                    fill: "#f8fafc",
+                  }}
                   contentStyle={{
                     borderRadius: "10px",
                     border: "1px solid #e2e8f0",
@@ -398,87 +550,118 @@ const Dashboard = () => {
           subtitle="Latest clinical cases"
           className="xl:col-span-2"
           action={
-            <button className="text-sm font-medium text-blue-600 hover:text-blue-700">
+            <button
+              className="text-sm font-medium text-blue-600 hover:text-blue-700"
+              onClick={() => {
+                window.location.href = "/cases"
+              }}
+            >
               View all
             </button>
           }
         >
-          <div className="-mx-5 overflow-x-auto">
-            <table className="w-full min-w-[720px] text-left">
-              <thead>
-                <tr className="border-y border-slate-100 bg-slate-50/70">
-                  <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wider text-slate-400">
-                    Patient
-                  </th>
+          {recentPatients.length > 0 ? (
+            <div className="-mx-5 overflow-x-auto">
+              <table className="w-full min-w-[720px] text-left">
+                <thead>
+                  <tr className="border-y border-slate-100 bg-slate-50/70">
+                    <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wider text-slate-400">
+                      Patient
+                    </th>
 
-                  <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wider text-slate-400">
-                    Age / Gender
-                  </th>
+                    <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wider text-slate-400">
+                      Age / Gender
+                    </th>
 
-                  <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wider text-slate-400">
-                    Condition
-                  </th>
+                    <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wider text-slate-400">
+                      Condition
+                    </th>
 
-                  <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wider text-slate-400">
-                    Risk
-                  </th>
+                    <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wider text-slate-400">
+                      Risk
+                    </th>
 
-                  <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wider text-slate-400">
-                    Status
-                  </th>
+                    <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wider text-slate-400">
+                      Status
+                    </th>
 
-                  <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wider text-slate-400">
-                    Date
-                  </th>
-                </tr>
-              </thead>
-
-              <tbody>
-                {recentPatients.map((patient) => (
-                  <tr
-                    key={patient.id}
-                    className="border-b border-slate-100 last:border-0 hover:bg-slate-50/50"
-                  >
-                    <td className="px-5 py-4">
-                      <div>
-                        <p className="text-sm font-semibold text-slate-800">
-                          {patient.name}
-                        </p>
-
-                        <p className="mt-0.5 text-xs text-slate-400">
-                          {patient.id}
-                        </p>
-                      </div>
-                    </td>
-
-                    <td className="px-5 py-4 text-sm text-slate-600">
-                      {patient.age} / {patient.gender}
-                    </td>
-
-                    <td className="px-5 py-4 text-sm text-slate-600">
-                      {patient.condition}
-                    </td>
-
-                    <td className="px-5 py-4">
-                      <Badge variant={riskBadgeVariants[patient.risk]}>
-                        {patient.risk}
-                      </Badge>
-                    </td>
-
-                    <td className="px-5 py-4">
-                      <Badge variant={statusBadgeVariants[patient.status]}>
-                        {patient.status}
-                      </Badge>
-                    </td>
-
-                    <td className="whitespace-nowrap px-5 py-4 text-sm text-slate-500">
-                      {patient.date}
-                    </td>
+                    <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wider text-slate-400">
+                      Date
+                    </th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+
+                <tbody>
+                  {recentPatients.map((patient) => (
+                    <tr
+                      key={patient.id}
+                      className="border-b border-slate-100 last:border-0 hover:bg-slate-50/50"
+                    >
+                      <td className="px-5 py-4">
+                        <div>
+                          <p className="text-sm font-semibold text-slate-800">
+                            {patient.name}
+                          </p>
+
+                          <p className="mt-0.5 text-xs text-slate-400">
+                            {patient.id}
+                          </p>
+                        </div>
+                      </td>
+
+                      <td className="px-5 py-4 text-sm text-slate-600">
+                        {patient.age} / {patient.gender}
+                      </td>
+
+                      <td className="px-5 py-4 text-sm text-slate-600">
+                        {patient.condition}
+                      </td>
+
+                      <td className="px-5 py-4">
+                        <Badge
+                          variant={
+                            riskBadgeVariants[
+                              patient.risk
+                            ] || "low"
+                          }
+                        >
+                          {patient.risk}
+                        </Badge>
+                      </td>
+
+                      <td className="px-5 py-4">
+                        <Badge
+                          variant={
+                            statusBadgeVariants[
+                              patient.status
+                            ] || "warning"
+                          }
+                        >
+                          {patient.status}
+                        </Badge>
+                      </td>
+
+                      <td className="whitespace-nowrap px-5 py-4 text-sm text-slate-500">
+                        {patient.date}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="flex min-h-[180px] items-center justify-center text-center">
+              <div>
+                <p className="text-sm font-medium text-slate-700">
+                  No patients found
+                </p>
+
+                <p className="mt-1 text-sm text-slate-400">
+                  Add a clinical case to see it here.
+                </p>
+              </div>
+            </div>
+          )}
         </Card>
 
         {/* Recent Activities */}
@@ -486,38 +669,59 @@ const Dashboard = () => {
           title="Recent Activities"
           subtitle="Latest system activity"
         >
-          <div className="space-y-5">
-            {recentActivities.map((activity) => {
-              const Icon = activityIcons[activity.type]
+          {recentActivities.length > 0 ? (
+            <div className="space-y-5">
+              {recentActivities.map((activity) => {
+                const Icon =
+                  activityIcons[activity.type] ||
+                  FiActivity
 
-              return (
-                <div
-                  key={activity.id}
-                  className="flex gap-3"
-                >
+                const iconStyle =
+                  activityIconStyles[
+                    activity.type
+                  ] || "bg-blue-50 text-blue-600"
+
+                return (
                   <div
-                    className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${activityIconStyles[activity.type]}`}
+                    key={activity.id}
+                    className="flex gap-3"
                   >
-                    <Icon className="h-4 w-4" />
+                    <div
+                      className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${iconStyle}`}
+                    >
+                      <Icon className="h-4 w-4" />
+                    </div>
+
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-slate-800">
+                        {activity.title}
+                      </p>
+
+                      <p className="mt-1 text-xs leading-5 text-slate-500">
+                        {activity.description}
+                      </p>
+
+                      <p className="mt-1 text-[11px] text-slate-400">
+                        {activity.time}
+                      </p>
+                    </div>
                   </div>
+                )
+              })}
+            </div>
+          ) : (
+            <div className="flex min-h-[180px] items-center justify-center text-center">
+              <div>
+                <p className="text-sm font-medium text-slate-700">
+                  No recent activity
+                </p>
 
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-slate-800">
-                      {activity.title}
-                    </p>
-
-                    <p className="mt-1 text-xs leading-5 text-slate-500">
-                      {activity.description}
-                    </p>
-
-                    <p className="mt-1 text-[11px] text-slate-400">
-                      {activity.time}
-                    </p>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
+                <p className="mt-1 text-sm text-slate-400">
+                  Activity will appear here as cases are created.
+                </p>
+              </div>
+            </div>
+          )}
         </Card>
       </section>
     </div>

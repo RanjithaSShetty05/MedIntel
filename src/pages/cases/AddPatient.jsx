@@ -14,6 +14,7 @@ import { toast } from "react-toastify"
 
 import Button from "../../components/Button"
 import Card from "../../components/Card"
+import { createCase } from "../../services/cases"
 
 const AddPatient = () => {
   const navigate = useNavigate()
@@ -173,34 +174,46 @@ const AddPatient = () => {
     return Object.keys(newErrors).length === 0
   }
 
-  const handleSubmit = (e) => {
-    e.preventDefault()
+  const handleSubmit = async (e) => {
+  e.preventDefault()
 
-    if (!validateForm()) {
-      toast.error(
-        "Please complete all required fields."
-      )
-      return
+  if (!validateForm()) {
+    toast.error("Please complete all required fields.")
+    return
+  }
+
+  if (isListening) {
+    recognitionRef.current?.stop()
+    setIsListening(false)
+  }
+
+  try {
+    const caseData = {
+      patientName: formData.patientName.trim(),
+      patientAge: Number(formData.age),
+      patientGender: formData.gender.toLowerCase(),
+      rawText: formData.clinicalNotes.trim(),
     }
 
-    if (isListening) {
-      recognitionRef.current?.stop()
-      setIsListening(false)
-    }
+    console.log("Sending case to backend:", caseData)
 
-    // Dummy submission for now.
-    // Later this will call the Spring Boot API.
-    console.log("New patient:", formData)
+    await createCase(caseData)
 
-    toast.success(
-      "Patient added successfully."
-    )
+    toast.success("Patient added successfully.")
 
     setTimeout(() => {
       navigate("/cases")
     }, 700)
-  }
+  } catch (error) {
+    console.error("Create case error:", error)
 
+    const message =
+      error.response?.data?.message ||
+      "Unable to create patient case. Please try again."
+
+    toast.error(message)
+  }
+}
   return (
     <div className="mx-auto max-w-5xl space-y-6">
 

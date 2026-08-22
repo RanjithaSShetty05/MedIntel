@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
+
 import {
   FiAlertTriangle,
   FiCheckCircle,
@@ -12,7 +13,9 @@ import {
 
 import Card from "../../components/Card"
 import Badge from "../../components/Badge"
-import { drugSafetyData } from "../../data/drugSafetyData"
+
+import { getCases } from "../../services/cases"
+
 
 const statusVariants = {
   Safe: "success",
@@ -21,55 +24,236 @@ const statusVariants = {
   "Not Found": "danger",
 }
 
+
 const DrugSafety = () => {
+
+  // --------------------------------------------------
+  // State
+  // --------------------------------------------------
+
   const [search, setSearch] = useState("")
-  const [statusFilter, setStatusFilter] = useState("All")
-  const [expandedId, setExpandedId] = useState(null)
 
-  const filteredMedications = useMemo(() => {
-    const value = search.toLowerCase().trim()
+  const [statusFilter, setStatusFilter] =
+    useState("All")
 
-    return drugSafetyData.filter((medication) => {
-      const matchesSearch =
-        !value ||
-        medication.medicationName
-          .toLowerCase()
-          .includes(value) ||
-        medication.warnings.some((warning) =>
-          warning.toLowerCase().includes(value)
-        ) ||
-        medication.recommendations
-          .toLowerCase()
-          .includes(value)
+  const [expandedId, setExpandedId] =
+    useState(null)
 
-      const matchesStatus =
-        statusFilter === "All" ||
-        medication.status === statusFilter
+  const [medications, setMedications] =
+    useState([])
 
-      return matchesSearch && matchesStatus
-    })
-  }, [search, statusFilter])
+  const [loading, setLoading] =
+    useState(true)
+
+
+  // --------------------------------------------------
+  // Load real drug safety information
+  // --------------------------------------------------
+
+  const loadDrugSafety = async () => {
+
+    try {
+
+      setLoading(true)
+
+      const cases = await getCases()
+
+      const findings = []
+
+      for (const patientCase of cases || []) {
+
+        const safetyFindings =
+          patientCase.drugSafetyFindings || []
+
+        safetyFindings.forEach(
+          (finding, index) => {
+
+            const warnings =
+              Array.isArray(
+                finding.warnings
+              )
+                ? finding.warnings
+                : []
+
+            const interactions =
+              Array.isArray(
+                finding.drugInteractions
+              )
+                ? finding.drugInteractions
+                : []
+
+            const hasBoxedWarning =
+              Boolean(
+                finding.boxedWarning
+              )
+
+            // Determine a display status
+            let status = "Safe"
+
+            if (
+              finding.found === false
+            ) {
+              status = "Not Found"
+            } else if (
+              hasBoxedWarning
+            ) {
+              status = "Critical"
+            } else if (
+              warnings.length > 0 ||
+              interactions.length > 0
+            ) {
+              status = "Warning"
+            }
+
+            findings.push({
+              id: `${patientCase.id}-${index}`,
+
+              caseId:
+                patientCase.id,
+
+              patientName:
+                patientCase.patientName,
+
+              medicationName:
+                finding.medication ||
+                "Unknown medication",
+
+              found:
+                finding.found !== false,
+
+              boxedWarning:
+                finding.boxedWarning ||
+                "No boxed warning available.",
+
+              warnings,
+
+              interactions,
+
+              status,
+            })
+          }
+        )
+      }
+
+      setMedications(findings)
+
+    } catch (error) {
+
+      console.error(
+        "Failed to load drug safety data:",
+        error
+      )
+
+    } finally {
+
+      setLoading(false)
+
+    }
+  }
+
+
+  // --------------------------------------------------
+  // Load on page open
+  // --------------------------------------------------
+
+  useEffect(() => {
+    loadDrugSafety()
+  }, [])
+
+
+  // --------------------------------------------------
+  // Search + filter
+  // --------------------------------------------------
+
+  const filteredMedications =
+    useMemo(() => {
+
+      const value =
+        search.toLowerCase().trim()
+
+      return medications.filter(
+        (medication) => {
+
+          const matchesSearch =
+            !value ||
+
+            medication.medicationName
+              .toLowerCase()
+              .includes(value) ||
+
+            medication.patientName
+              ?.toLowerCase()
+              .includes(value) ||
+
+            medication.warnings.some(
+              (warning) =>
+                warning
+                  .toLowerCase()
+                  .includes(value)
+            ) ||
+
+            medication.interactions.some(
+              (interaction) =>
+                interaction
+                  .toLowerCase()
+                  .includes(value)
+            )
+
+          const matchesStatus =
+            statusFilter === "All" ||
+            medication.status ===
+              statusFilter
+
+          return (
+            matchesSearch &&
+            matchesStatus
+          )
+        }
+      )
+
+    }, [
+      medications,
+      search,
+      statusFilter,
+    ])
+
+
+  // --------------------------------------------------
+  // Expand medication
+  // --------------------------------------------------
 
   const toggleMedication = (id) => {
+
     setExpandedId((current) =>
-      current === id ? null : id
+      current === id
+        ? null
+        : id
     )
   }
 
+
+  // --------------------------------------------------
+  // Status icon
+  // --------------------------------------------------
+
   const getStatusIcon = (status) => {
+
     if (status === "Safe") {
+
       return (
         <FiCheckCircle className="h-5 w-5 text-emerald-600" />
       )
     }
 
     if (status === "Critical") {
+
       return (
         <FiXCircle className="h-5 w-5 text-red-600" />
       )
     }
 
     if (status === "Not Found") {
+
       return (
         <FiInfo className="h-5 w-5 text-slate-500" />
       )
@@ -80,11 +264,52 @@ const DrugSafety = () => {
     )
   }
 
+
+  // --------------------------------------------------
+  // Loading
+  // --------------------------------------------------
+
+  if (loading) {
+
+    return (
+      <div className="mx-auto max-w-[1200px]">
+
+        <div className="flex min-h-[60vh] items-center justify-center">
+
+          <div className="text-center">
+
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-blue-50">
+
+              <FiShield className="h-5 w-5 animate-pulse text-blue-600" />
+
+            </div>
+
+            <p className="mt-4 text-sm text-slate-500">
+              Loading drug safety information...
+            </p>
+
+          </div>
+
+        </div>
+
+      </div>
+    )
+  }
+
+
+  // --------------------------------------------------
+  // Main page
+  // --------------------------------------------------
+
   return (
+
     <div className="mx-auto max-w-[1200px] space-y-6">
 
+
       {/* Header */}
+
       <div>
+
         <p className="text-sm font-medium text-blue-600">
           Clinical Intelligence
         </p>
@@ -94,125 +319,202 @@ const DrugSafety = () => {
         </h1>
 
         <p className="mt-2 text-sm text-slate-500">
-          Review medication warnings, interactions, and
-          safety recommendations.
+          Review medication warnings, interactions,
+          and safety findings.
         </p>
+
       </div>
 
-      {/* Summary */}
+
+      {/* Summary cards */}
+
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
 
+
+        {/* Medications */}
+
         <Card>
+
           <div className="flex items-center gap-3">
+
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+
               <FiShield className="h-5 w-5" />
+
             </div>
 
             <div>
+
               <p className="text-xs text-slate-400">
                 Medications
               </p>
 
               <p className="text-xl font-bold text-slate-900">
-                {drugSafetyData.length}
+                {medications.length}
               </p>
+
             </div>
+
           </div>
+
         </Card>
 
+
+        {/* Safe */}
+
         <Card>
+
           <div className="flex items-center gap-3">
+
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
+
               <FiCheckCircle className="h-5 w-5" />
+
             </div>
 
             <div>
+
               <p className="text-xs text-slate-400">
                 Safe
               </p>
 
               <p className="text-xl font-bold text-slate-900">
+
                 {
-                  drugSafetyData.filter(
-                    (item) => item.status === "Safe"
+                  medications.filter(
+                    (item) =>
+                      item.status ===
+                      "Safe"
                   ).length
                 }
+
               </p>
+
             </div>
+
           </div>
+
         </Card>
 
+
+        {/* Warnings */}
+
         <Card>
+
           <div className="flex items-center gap-3">
+
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50 text-amber-600">
+
               <FiAlertTriangle className="h-5 w-5" />
+
             </div>
 
             <div>
+
               <p className="text-xs text-slate-400">
                 Warnings
               </p>
 
               <p className="text-xl font-bold text-slate-900">
+
                 {
-                  drugSafetyData.filter(
-                    (item) => item.status === "Warning"
+                  medications.filter(
+                    (item) =>
+                      item.status ===
+                        "Warning" ||
+                      item.status ===
+                        "Critical"
                   ).length
                 }
+
               </p>
+
             </div>
+
           </div>
+
         </Card>
 
+
+        {/* Critical */}
+
         <Card>
+
           <div className="flex items-center gap-3">
+
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-50 text-red-600">
+
               <FiXCircle className="h-5 w-5" />
+
             </div>
 
             <div>
+
               <p className="text-xs text-slate-400">
                 Critical
               </p>
 
               <p className="text-xl font-bold text-slate-900">
+
                 {
-                  drugSafetyData.filter(
-                    (item) => item.status === "Critical"
+                  medications.filter(
+                    (item) =>
+                      item.status ===
+                      "Critical"
                   ).length
                 }
+
               </p>
+
             </div>
+
           </div>
+
         </Card>
 
       </div>
 
-      {/* Search and filter */}
+
+      {/* Search + Filter */}
+
       <Card>
+
         <div className="flex flex-col gap-3 sm:flex-row">
 
+
+          {/* Search */}
+
           <div className="relative flex-1">
+
             <FiSearch className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
 
             <input
               type="text"
               value={search}
               onChange={(e) =>
-                setSearch(e.target.value)
+                setSearch(
+                  e.target.value
+                )
               }
-              placeholder="Search medication, warning, or recommendation..."
+              placeholder="Search medication, patient, warning, or interaction..."
               className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-4 text-sm outline-none transition focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100"
             />
+
           </div>
+
+
+          {/* Status */}
 
           <select
             value={statusFilter}
             onChange={(e) =>
-              setStatusFilter(e.target.value)
+              setStatusFilter(
+                e.target.value
+              )
             }
             className="rounded-lg border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
           >
+
             <option value="All">
               All statuses
             </option>
@@ -232,256 +534,411 @@ const DrugSafety = () => {
             <option value="Not Found">
               Not Found
             </option>
+
           </select>
+
         </div>
+
       </Card>
 
+
       {/* Medication list */}
+
       <Card
         title="Medication Safety Analysis"
         subtitle={`${filteredMedications.length} medications found`}
       >
+
         <div className="space-y-4">
 
-          {filteredMedications.length > 0 ? (
-            filteredMedications.map((medication) => {
-              const isExpanded =
-                expandedId === medication.id
+          {filteredMedications.length >
+          0 ? (
 
-              return (
-                <div
-                  key={medication.id}
-                  className={`
-                    overflow-hidden rounded-xl border transition
-                    ${
-                      medication.status === "Critical"
-                        ? "border-red-100"
-                        : medication.status ===
-                            "Warning"
-                          ? "border-amber-100"
-                          : "border-slate-200"
-                    }
-                  `}
-                >
+            filteredMedications.map(
+              (medication) => {
 
-                  {/* Medication Header */}
-                  <button
-                    type="button"
-                    onClick={() =>
-                      toggleMedication(medication.id)
+                const isExpanded =
+                  expandedId ===
+                  medication.id
+
+                return (
+
+                  <div
+                    key={
+                      medication.id
                     }
-                    className="flex w-full items-center justify-between gap-4 p-5 text-left transition hover:bg-slate-50"
+                    className={`
+                      overflow-hidden rounded-xl border transition
+                      ${
+                        medication.status ===
+                        "Critical"
+                          ? "border-red-100"
+                          : medication.status ===
+                              "Warning"
+                            ? "border-amber-100"
+                            : "border-slate-200"
+                      }
+                    `}
                   >
-                    <div className="flex min-w-0 items-center gap-4">
 
-                      <div
-                        className={`
-                          flex h-11 w-11 shrink-0 items-center
-                          justify-center rounded-xl
-                          ${
-                            medication.status ===
-                            "Critical"
-                              ? "bg-red-50 text-red-600"
-                              : medication.status ===
-                                  "Warning"
-                                ? "bg-amber-50 text-amber-600"
+
+                    {/* Header */}
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        toggleMedication(
+                          medication.id
+                        )
+                      }
+                      className="flex w-full items-center justify-between gap-4 p-5 text-left transition hover:bg-slate-50"
+                    >
+
+                      <div className="flex min-w-0 items-center gap-4">
+
+
+                        {/* Icon */}
+
+                        <div
+                          className={`
+                            flex h-11 w-11 shrink-0
+                            items-center justify-center
+                            rounded-xl
+                            ${
+                              medication.status ===
+                              "Critical"
+                                ? "bg-red-50 text-red-600"
                                 : medication.status ===
-                                    "Not Found"
-                                  ? "bg-slate-100 text-slate-500"
-                                  : "bg-emerald-50 text-emerald-600"
-                          }
-                        `}
-                      >
-                        {getStatusIcon(
-                          medication.status
-                        )}
-                      </div>
-
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <h3 className="text-sm font-semibold text-slate-800">
-                            {medication.medicationName}
-                          </h3>
-
-                          <Badge
-                            variant={
-                              statusVariants[
-                                medication.status
-                              ]
+                                    "Warning"
+                                  ? "bg-amber-50 text-amber-600"
+                                  : medication.status ===
+                                      "Not Found"
+                                    ? "bg-slate-100 text-slate-500"
+                                    : "bg-emerald-50 text-emerald-600"
                             }
-                          >
-                            {medication.status}
-                          </Badge>
-                        </div>
+                          `}
+                        >
 
-                        <p className="mt-1 text-xs text-slate-400">
-                          {medication.found
-                            ? "Medication identified in safety database"
-                            : "Medication could not be identified"}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="shrink-0 text-slate-400">
-                      {isExpanded ? (
-                        <FiChevronUp className="h-5 w-5" />
-                      ) : (
-                        <FiChevronDown className="h-5 w-5" />
-                      )}
-                    </div>
-                  </button>
-
-                  {/* Expanded Content */}
-                  {isExpanded && (
-                    <div className="border-t border-slate-100 bg-slate-50/50 p-5">
-
-                      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-
-                        {/* Warnings */}
-                        <div className="rounded-xl border border-slate-200 bg-white p-4">
-                          <div className="flex items-center gap-2">
-                            <FiAlertTriangle className="h-4 w-4 text-amber-500" />
-
-                            <h4 className="text-sm font-semibold text-slate-800">
-                              Warnings
-                            </h4>
-                          </div>
-
-                          {medication.warnings.length >
-                          0 ? (
-                            <ul className="mt-3 space-y-2">
-                              {medication.warnings.map(
-                                (warning) => (
-                                  <li
-                                    key={warning}
-                                    className="flex gap-2 text-xs leading-5 text-slate-600"
-                                  >
-                                    <span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-amber-500" />
-                                    {warning}
-                                  </li>
-                                )
-                              )}
-                            </ul>
-                          ) : (
-                            <p className="mt-3 text-xs text-slate-400">
-                              No warnings available.
-                            </p>
+                          {getStatusIcon(
+                            medication.status
                           )}
+
                         </div>
 
-                        {/* Drug Interactions */}
-                        <div className="rounded-xl border border-slate-200 bg-white p-4">
-                          <div className="flex items-center gap-2">
-                            <FiActivityIcon />
 
-                            <h4 className="text-sm font-semibold text-slate-800">
-                              Drug Interactions
-                            </h4>
+                        {/* Name */}
+
+                        <div className="min-w-0">
+
+                          <div className="flex flex-wrap items-center gap-2">
+
+                            <h3 className="text-sm font-semibold text-slate-800">
+                              {
+                                medication.medicationName
+                              }
+                            </h3>
+
+                            <Badge
+                              variant={
+                                statusVariants[
+                                  medication.status
+                                ] ||
+                                "info"
+                              }
+                            >
+                              {
+                                medication.status
+                              }
+                            </Badge>
+
                           </div>
 
-                          {medication.interactions
-                            .length > 0 ? (
-                            <ul className="mt-3 space-y-2">
-                              {medication.interactions.map(
-                                (interaction) => (
-                                  <li
-                                    key={interaction}
-                                    className="flex gap-2 text-xs leading-5 text-slate-600"
-                                  >
-                                    <span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-blue-500" />
-                                    {interaction}
-                                  </li>
-                                )
-                              )}
-                            </ul>
-                          ) : (
-                            <p className="mt-3 text-xs text-slate-400">
-                              No interactions available.
-                            </p>
-                          )}
-                        </div>
 
-                        {/* Boxed Warning */}
-                        <div className="rounded-xl border border-red-100 bg-red-50/50 p-4">
-                          <div className="flex items-center gap-2">
-                            <FiXCircle className="h-4 w-4 text-red-500" />
+                          <p className="mt-1 text-xs text-slate-400">
 
-                            <h4 className="text-sm font-semibold text-red-800">
-                              Boxed Warning
-                            </h4>
-                          </div>
+                            Patient:{" "}
 
-                          <p className="mt-3 text-xs leading-5 text-red-700">
-                            {medication.boxedWarning}
+                            {
+                              medication.patientName ||
+                              "Unknown patient"
+                            }
+
                           </p>
-                        </div>
 
-                        {/* Recommendations */}
-                        <div className="rounded-xl border border-blue-100 bg-blue-50/50 p-4">
-                          <div className="flex items-center gap-2">
-                            <FiCheckCircle className="h-4 w-4 text-blue-600" />
-
-                            <h4 className="text-sm font-semibold text-blue-800">
-                              Recommendations
-                            </h4>
-                          </div>
-
-                          <p className="mt-3 text-xs leading-5 text-blue-700">
-                            {medication.recommendations}
-                          </p>
                         </div>
 
                       </div>
-                    </div>
-                  )}
-                </div>
-              )
-            })
+
+
+                      {/* Arrow */}
+
+                      <div className="shrink-0 text-slate-400">
+
+                        {isExpanded ? (
+
+                          <FiChevronUp className="h-5 w-5" />
+
+                        ) : (
+
+                          <FiChevronDown className="h-5 w-5" />
+
+                        )}
+
+                      </div>
+
+                    </button>
+
+
+                    {/* Expanded */}
+
+                    {isExpanded && (
+
+                      <div className="border-t border-slate-100 bg-slate-50/50 p-5">
+
+                        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+
+
+                          {/* Warnings */}
+
+                          <div className="rounded-xl border border-slate-200 bg-white p-4">
+
+                            <div className="flex items-center gap-2">
+
+                              <FiAlertTriangle className="h-4 w-4 text-amber-500" />
+
+                              <h4 className="text-sm font-semibold text-slate-800">
+                                Warnings
+                              </h4>
+
+                            </div>
+
+
+                            {medication.warnings.length >
+                            0 ? (
+
+                              <ul className="mt-3 space-y-2">
+
+                                {medication.warnings.map(
+                                  (
+                                    warning,
+                                    index
+                                  ) => (
+
+                                    <li
+                                      key={
+                                        `${medication.id}-warning-${index}`
+                                      }
+                                      className="flex gap-2 text-xs leading-5 text-slate-600"
+                                    >
+
+                                      <span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-amber-500" />
+
+                                      {warning}
+
+                                    </li>
+
+                                  )
+                                )}
+
+                              </ul>
+
+                            ) : (
+
+                              <p className="mt-3 text-xs text-slate-400">
+                                No warnings available.
+                              </p>
+
+                            )}
+
+                          </div>
+
+
+                          {/* Interactions */}
+
+                          <div className="rounded-xl border border-slate-200 bg-white p-4">
+
+                            <div className="flex items-center gap-2">
+
+                              <FiShield className="h-4 w-4 text-blue-500" />
+
+                              <h4 className="text-sm font-semibold text-slate-800">
+                                Drug Interactions
+                              </h4>
+
+                            </div>
+
+
+                            {medication.interactions.length >
+                            0 ? (
+
+                              <ul className="mt-3 space-y-2">
+
+                                {medication.interactions.map(
+                                  (
+                                    interaction,
+                                    index
+                                  ) => (
+
+                                    <li
+                                      key={
+                                        `${medication.id}-interaction-${index}`
+                                      }
+                                      className="flex gap-2 text-xs leading-5 text-slate-600"
+                                    >
+
+                                      <span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-blue-500" />
+
+                                      {interaction}
+
+                                    </li>
+
+                                  )
+                                )}
+
+                              </ul>
+
+                            ) : (
+
+                              <p className="mt-3 text-xs text-slate-400">
+                                No interactions available.
+                              </p>
+
+                            )}
+
+                          </div>
+
+
+                          {/* Boxed Warning */}
+
+                          <div className="rounded-xl border border-red-100 bg-red-50/50 p-4">
+
+                            <div className="flex items-center gap-2">
+
+                              <FiXCircle className="h-4 w-4 text-red-500" />
+
+                              <h4 className="text-sm font-semibold text-red-800">
+                                Boxed Warning
+                              </h4>
+
+                            </div>
+
+
+                            <p className="mt-3 text-xs leading-5 text-red-700">
+
+                              {
+                                medication.boxedWarning
+                              }
+
+                            </p>
+
+                          </div>
+
+
+                          {/* Found */}
+
+                          <div className="rounded-xl border border-blue-100 bg-blue-50/50 p-4">
+
+                            <div className="flex items-center gap-2">
+
+                              {medication.found ? (
+
+                                <FiCheckCircle className="h-4 w-4 text-blue-600" />
+
+                              ) : (
+
+                                <FiInfo className="h-4 w-4 text-slate-500" />
+
+                              )}
+
+                              <h4 className="text-sm font-semibold text-blue-800">
+                                Medication Status
+                              </h4>
+
+                            </div>
+
+
+                            <p className="mt-3 text-xs leading-5 text-blue-700">
+
+                              {medication.found
+                                ? "Medication was identified in the backend drug safety analysis."
+                                : "Medication could not be identified in the backend drug safety analysis."}
+
+                            </p>
+
+                          </div>
+
+                        </div>
+
+                      </div>
+
+                    )}
+
+                  </div>
+
+                )
+              }
+            )
+
           ) : (
+
             <div className="flex min-h-[280px] flex-col items-center justify-center text-center">
+
               <div className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-100">
+
                 <FiSearch className="h-5 w-5 text-slate-400" />
+
               </div>
+
 
               <h3 className="mt-4 text-sm font-semibold text-slate-800">
                 No medications found
               </h3>
 
+
               <p className="mt-1 text-sm text-slate-500">
-                Try changing your search or status filter.
+
+                {medications.length === 0
+                  ? "No drug safety findings are available yet."
+                  : "Try changing your search or status filter."}
+
               </p>
+
             </div>
+
           )}
+
         </div>
+
       </Card>
 
-      {/* Clinical disclaimer */}
+
+      {/* Disclaimer */}
+
       <div className="flex gap-3 rounded-xl border border-amber-100 bg-amber-50 p-4">
+
         <FiInfo className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
 
         <div>
+
           <p className="text-sm font-semibold text-amber-800">
             Clinical decision support
           </p>
 
           <p className="mt-1 text-xs leading-5 text-amber-700">
-            Medication safety findings are intended to
-            support clinical review. Healthcare professionals
-            should verify medication information before making
-            treatment decisions.
+            Medication safety findings are intended
+            to support clinical review. Healthcare
+            professionals should verify medication
+            information before making treatment
+            decisions.
           </p>
+
         </div>
+
       </div>
+
     </div>
   )
 }
 
-/*
-  Small reusable icon component for the interaction
-  section.
-*/
-const FiActivityIcon = () => (
-  <FiShield className="h-4 w-4 text-blue-500" />
-)
 
 export default DrugSafety

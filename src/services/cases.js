@@ -1,33 +1,26 @@
+import api from "./api"
+
 export const getCases = async () => {
-  return []
+  const response = await api.get("/cases")
+  return response.data
 }
 
 export const getCaseById = async (id) => {
-  console.log("Getting case:", id)
-
-  return null
+  const response = await api.get(`/cases/${id}`)
+  return response.data
 }
 
 export const createCase = async (caseData) => {
-  console.log("Creating case:", caseData)
-
-  return {
-    success: true,
-  }
+  const response = await api.post("/cases", caseData)
+  return response.data
 }
 
 export const updateCase = async (id, caseData) => {
-  console.log("Updating case:", id, caseData)
-
-  return {
-    success: true,
-  }
+  const response = await api.put(`/cases/${id}`, caseData)
+  return response.data
 }
 
 export const deleteCase = async (id) => {
-  console.log("Deleting case:", id)
-
-  return {
-    success: true,
-  }
+  const response = await api.delete(`/cases/${id}`)
+  return response.data
 }
