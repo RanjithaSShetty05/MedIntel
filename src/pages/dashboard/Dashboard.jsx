@@ -32,7 +32,7 @@ import Card from "../../components/Card"
 import Badge from "../../components/Badge"
 
 import { useEffect, useState } from "react"
-import { getDashboardData } from "../../services/dashboard"
+import { getDashboardData } from "../../data/dashboardData"
 
 const statIcons = {
   patients: FiUsers,
