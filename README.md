@@ -1,16 +1,34 @@
-# React + Vite
+# MedIntel — Clinical Triage & Decision Support Platform
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+MedIntel is a full-stack clinical decision-support platform with a React-based frontend connected to a Spring Boot REST API.
 
-Currently, two official plugins are available:
+The frontend provides the user interface for authentication, clinical case management, patient details, AI-assisted insights, timelines, doctor notes, drug safety analysis, reports, audit logs, search, and dashboard analytics.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+> **Important:** MedIntel is a clinical decision-support system. AI-generated information is intended to assist qualified healthcare professionals and does not replace professional medical diagnosis or clinical judgment.
 
-## React Compiler
+---
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Frontend Architecture
 
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+```text
+                    ┌─────────────────────────┐
+                    │      React Frontend      │
+                    │                         │
+                    │ React + Vite            │
+                    │ Axios                   │
+                    │ Tailwind CSS             │
+                    │ JWT Authentication       │
+                    └────────────┬────────────┘
+                                 │
+                                 │ REST API
+                                 │ Authorization: Bearer JWT
+                                 ▼
+                    ┌─────────────────────────┐
+                    │    Spring Boot Backend  │
+                    │       Port 8080         │
+                    └────────────┬────────────┘
+                                 │
+                    ┌────────────┴────────────┐
+                    ▼                         ▼
+               PostgreSQL              Python AI Service
+                                        Port 8001
